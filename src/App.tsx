@@ -31,7 +31,11 @@ export default function App() {
   // Form states
   const [amount, setAmount] = useState<number>(120);
   const [feedingInterval, setFeedingInterval] = useState<number>(3); // hours
+  const [nextFeedingMode, setNextFeedingMode] = useState<'interval' | 'manual'>('interval');
+  const [manualNextTime, setManualNextTime] = useState<string>('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [showFeedingAlert, setShowFeedingAlert] = useState(false);
+  const lastAlertedTimeRef = useRef<number | null>(null);
   const amountInputRef = useRef<HTMLInputElement>(null);
   const notificationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -119,7 +123,21 @@ export default function App() {
 
   const handleAddFeeding = () => {
     const now = Date.now();
-    const nextTime = now + (feedingInterval * 60 * 60 * 1000);
+    let nextTime: number;
+
+    if (nextFeedingMode === 'manual' && manualNextTime) {
+      const [hours, minutes] = manualNextTime.split(':').map(Number);
+      const nextDate = new Date();
+      nextDate.setHours(hours, minutes, 0, 0);
+      
+      // If the time is in the past, assume it's for the next day
+      if (nextDate.getTime() <= now) {
+        nextDate.setDate(nextDate.getDate() + 1);
+      }
+      nextTime = nextDate.getTime();
+    } else {
+      nextTime = now + (feedingInterval * 60 * 60 * 1000);
+    }
     
     const newRecord: FeedingRecord = {
       id: crypto.randomUUID(),
@@ -138,9 +156,26 @@ export default function App() {
   const handleUpdateFeeding = () => {
     if (!editingRecord) return;
     
+    const now = Date.now();
+    let nextTime: number;
+
+    if (nextFeedingMode === 'manual' && manualNextTime) {
+      const [hours, minutes] = manualNextTime.split(':').map(Number);
+      const nextDate = new Date();
+      nextDate.setHours(hours, minutes, 0, 0);
+      
+      // If the time is in the past, assume it's for the next day
+      if (nextDate.getTime() <= now) {
+        nextDate.setDate(nextDate.getDate() + 1);
+      }
+      nextTime = nextDate.getTime();
+    } else {
+      nextTime = Number(editingRecord.timestamp) + (feedingInterval * 60 * 60 * 1000);
+    }
+
     const updatedRecords = records.map(r => 
       r.id === editingRecord.id 
-        ? { ...editingRecord, amount, nextFeedingTime: Number(editingRecord.timestamp) + (feedingInterval * 60 * 60 * 1000) } 
+        ? { ...editingRecord, amount, nextFeedingTime: nextTime } 
         : r
     );
     
@@ -148,6 +183,8 @@ export default function App() {
     setEditingRecord(null);
     setShowAddModal(false);
     addToast('Đã cập nhật bản ghi');
+    
+    if ('vibrate' in navigator) navigator.vibrate(50);
   };
 
   const deleteRecord = (id: string) => {
@@ -236,7 +273,7 @@ export default function App() {
     const elapsed = now - start;
     
     const diff = target - now;
-    if (diff <= 0) return { text: "Đến lúc bú!", progress: 100 };
+    if (diff <= 0) return { text: "Đã đến cữ bú!", progress: 100 };
     
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
@@ -259,7 +296,22 @@ export default function App() {
     
     // Then update every second
     const t = window.setInterval(() => {
-      setCountdown(getCountdownData());
+      const data = getCountdownData();
+      setCountdown(data);
+      
+      // Show alert if time is up and we haven't alerted for this record yet
+      if (records.length > 0) {
+        const target = Number(records[0].nextFeedingTime);
+        if (Date.now() >= target && lastAlertedTimeRef.current !== target) {
+          setShowFeedingAlert(true);
+          lastAlertedTimeRef.current = target;
+          
+          // Also try to show system notification if enabled
+          if (notificationsEnabled) {
+            showNotification();
+          }
+        }
+      }
     }, 1000);
     
     return () => window.clearInterval(t);
@@ -349,9 +401,11 @@ export default function App() {
                       className="text-white"
                     />
                   </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center space-y-1">
-                    <p className="text-[10px] font-black opacity-70 uppercase tracking-[0.2em]">Cữ tiếp theo</p>
-                    <h2 className="text-4xl font-black tracking-tighter">{countdown.text}</h2>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
+                    <p className="text-[10px] font-black opacity-70 uppercase tracking-[0.2em] mb-1">Cữ tiếp theo</p>
+                    <h2 className={`font-black tracking-tighter leading-none ${countdown.text.length > 8 ? 'text-2xl' : 'text-4xl'}`}>
+                      {countdown.text}
+                    </h2>
                   </div>
                 </div>
 
@@ -374,6 +428,7 @@ export default function App() {
                   <button 
                     onClick={() => {
                       setEditingRecord(null);
+                      setNextFeedingMode('interval');
                       setShowAddModal(true);
                       if ('vibrate' in navigator) navigator.vibrate(50);
                       setTimeout(() => amountInputRef.current?.focus(), 150);
@@ -480,6 +535,9 @@ export default function App() {
                                 onClick={() => {
                                   setEditingRecord(record);
                                   setAmount(record.amount);
+                                  setNextFeedingMode('manual');
+                                  const date = new Date(record.nextFeedingTime);
+                                  setManualNextTime(`${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`);
                                   setShowAddModal(true);
                                 }}
                                 className="p-2 text-slate-400 hover:text-blue-500 transition-colors"
@@ -742,21 +800,55 @@ export default function App() {
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black uppercase opacity-40 tracking-[0.2em] text-center block">Cữ tiếp theo sau (giờ)</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[2, 2.5, 3, 4].map(h => (
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-black uppercase opacity-40 tracking-[0.2em]">Cữ tiếp theo</label>
+                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                       <button 
-                        key={h}
-                        onClick={() => {
-                          setFeedingInterval(h);
-                          if ('vibrate' in navigator) navigator.vibrate(20);
-                        }}
-                        className={`py-3 rounded-2xl font-black transition-all ${feedingInterval === h ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30 scale-105' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}
+                        onClick={() => setNextFeedingMode('interval')}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${nextFeedingMode === 'interval' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-500' : 'text-slate-400'}`}
                       >
-                        {h}g
+                        Khoảng cách
                       </button>
-                    ))}
+                      <button 
+                        onClick={() => {
+                          setNextFeedingMode('manual');
+                          if (!manualNextTime) {
+                            const date = new Date(Date.now() + (feedingInterval * 60 * 60 * 1000));
+                            setManualNextTime(`${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${nextFeedingMode === 'manual' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-500' : 'text-slate-400'}`}
+                      >
+                        Giờ cụ thể
+                      </button>
+                    </div>
                   </div>
+
+                  {nextFeedingMode === 'interval' ? (
+                    <div className="grid grid-cols-4 gap-2">
+                      {[2, 2.5, 3, 4].map(h => (
+                        <button 
+                          key={h}
+                          onClick={() => {
+                            setFeedingInterval(h);
+                            if ('vibrate' in navigator) navigator.vibrate(20);
+                          }}
+                          className={`py-3 rounded-2xl font-black transition-all ${feedingInterval === h ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30 scale-105' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}
+                        >
+                          {h}g
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-3xl">
+                      <input 
+                        type="time" 
+                        value={manualNextTime}
+                        onChange={(e) => setManualNextTime(e.target.value)}
+                        className="text-4xl font-black bg-transparent outline-none text-blue-500 text-center w-full"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -811,6 +903,64 @@ export default function App() {
                   className="py-3 rounded-2xl font-black bg-red-500 text-white shadow-lg shadow-red-500/30"
                 >
                   Xác nhận
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Feeding Alert Modal */}
+      <AnimatePresence>
+        {showFeedingAlert && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-blue-600/90 backdrop-blur-xl"
+            />
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0, y: 20 }}
+              className="w-full max-w-xs p-8 relative z-10 text-center space-y-8"
+            >
+              <div className="relative">
+                <motion.div 
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="w-32 h-32 bg-white rounded-full flex items-center justify-center mx-auto shadow-2xl shadow-white/20"
+                >
+                  <Droplets size={64} className="text-blue-500" />
+                </motion.div>
+                <motion.div 
+                  animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="absolute inset-0 bg-white rounded-full -z-10"
+                />
+              </div>
+              
+              <div className="space-y-3 text-white">
+                <h2 className="text-3xl font-black tracking-tighter">Đã đến cữ bú!</h2>
+                <p className="text-white/70 font-bold">Bé yêu đang đợi sữa rồi bố mẹ ơi. Hãy chuẩn bị sữa cho bé nhé! 🍼</p>
+              </div>
+              
+              <div className="space-y-3">
+                <button 
+                  onClick={() => {
+                    setShowFeedingAlert(false);
+                    setShowAddModal(true);
+                  }}
+                  className="w-full py-5 bg-white text-blue-600 rounded-3xl font-black text-xl shadow-xl active:scale-95 transition-transform"
+                >
+                  Ghi cữ bú ngay
+                </button>
+                <button 
+                  onClick={() => setShowFeedingAlert(false)}
+                  className="w-full py-4 text-white/60 font-black text-sm uppercase tracking-widest"
+                >
+                  Để sau
                 </button>
               </div>
             </motion.div>
