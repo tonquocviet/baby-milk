@@ -3,7 +3,7 @@ import {
   Plus, History, Settings, Trash2, Edit2, 
   ChevronRight, Clock, Droplets, Download, 
   Check, X, BarChart3, Upload, AlertCircle,
-  Info, ArrowLeft, MoreVertical, Bell
+  Info, ArrowLeft, MoreVertical, Bell, Volume2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -34,8 +34,10 @@ export default function App() {
   const [nextFeedingMode, setNextFeedingMode] = useState<'interval' | 'manual'>('interval');
   const [manualNextTime, setManualNextTime] = useState<string>('');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const [showFeedingAlert, setShowFeedingAlert] = useState(false);
   const lastAlertedTimeRef = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const amountInputRef = useRef<HTMLInputElement>(null);
   const notificationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,6 +46,7 @@ export default function App() {
   useEffect(() => {
     const saved = localStorage.getItem('baby_feeding_records');
     const savedNotif = localStorage.getItem('baby_notifications_enabled');
+    const savedSound = localStorage.getItem('baby_sound_enabled');
     
     if (saved) {
       try {
@@ -61,6 +64,9 @@ export default function App() {
     if (savedNotif === 'true') {
       setNotificationsEnabled(true);
     }
+    if (savedSound === 'false') {
+      setSoundEnabled(false);
+    }
   }, []);
 
   // Save data
@@ -77,6 +83,19 @@ export default function App() {
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 3000);
+  };
+
+  const playAlertSound = () => {
+    if (!soundEnabled) return;
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+      }
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(e => console.log('Audio play failed:', e));
+    } catch (e) {
+      console.log('Audio error:', e);
+    }
   };
 
   const requestNotificationPermission = async () => {
@@ -332,6 +351,14 @@ export default function App() {
           setShowFeedingAlert(true);
           lastAlertedTimeRef.current = target;
           
+          // Play sound alert (fallback for iOS < 16.4)
+          playAlertSound();
+          
+          // Vibrate if supported
+          if ('vibrate' in navigator) {
+            navigator.vibrate([200, 100, 200, 100, 200]);
+          }
+
           // Also try to show system notification if enabled
           if (notificationsEnabled) {
             showNotification();
@@ -674,6 +701,14 @@ export default function App() {
                 <section className="space-y-3">
                   <h3 className="text-[10px] font-black uppercase opacity-40 tracking-widest px-2">Ứng dụng</h3>
                   <div className="card divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
+                    <div className="p-4 bg-blue-50/50 dark:bg-blue-900/10">
+                      <div className="flex items-start space-x-3">
+                        <Info size={16} className="text-blue-500 mt-0.5" />
+                        <p className="text-[11px] text-blue-600/80 dark:text-blue-400/80 leading-relaxed">
+                          <span className="font-bold">Lưu ý cho iPhone:</span> Thông báo hệ thống chỉ hoạt động trên iOS 16.4+. Với phiên bản cũ hơn, hãy bật <span className="font-bold">Âm thanh nhắc nhở</span> và giữ ứng dụng chạy ngầm.
+                        </p>
+                      </div>
+                    </div>
                     <div className="p-4 flex justify-between items-center">
                       <div className="flex items-center space-x-3">
                         <Clock size={20} className="text-slate-400" />
@@ -707,6 +742,52 @@ export default function App() {
                           className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
                         />
                       </button>
+                    </div>
+                    <div className="p-4 flex justify-between items-center">
+                      <div className="flex items-center space-x-3">
+                        <Volume2 size={20} className="text-slate-400" />
+                        <div className="flex flex-col">
+                          <span className="font-bold">Âm thanh nhắc nhở</span>
+                          <span className="text-[10px] opacity-50 font-bold uppercase tracking-wider">Dành cho iOS cũ</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <button 
+                          onClick={playAlertSound}
+                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-blue-500 transition-colors"
+                          title="Thử âm thanh"
+                        >
+                          <Volume2 size={16} />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if (notificationsEnabled) {
+                              showNotification();
+                              addToast('Đã gửi thông báo thử');
+                            } else {
+                              addToast('Vui lòng bật thông báo trước', 'info');
+                            }
+                          }}
+                          className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-blue-500 transition-colors"
+                          title="Thử thông báo"
+                        >
+                          <Bell size={16} />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            const newVal = !soundEnabled;
+                            setSoundEnabled(newVal);
+                            localStorage.setItem('baby_sound_enabled', newVal ? 'true' : 'false');
+                            addToast(newVal ? 'Đã bật âm thanh' : 'Đã tắt âm thanh', 'info');
+                          }}
+                          className={`w-12 h-6 rounded-full transition-colors relative ${soundEnabled ? 'bg-blue-500' : 'bg-slate-200 dark:bg-slate-800'}`}
+                        >
+                          <motion.div 
+                            animate={{ x: soundEnabled ? 26 : 4 }}
+                            className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
+                          />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </section>
