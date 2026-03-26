@@ -138,8 +138,8 @@ export default function App() {
     navigator.serviceWorker.ready.then((registration) => {
       registration.showNotification('BabyMilk Tracker', {
         body: 'Đã đến lúc cho bé bú rồi bố mẹ ơi! 🍼',
-        icon: 'https://picsum.photos/seed/baby/192/192',
-        badge: 'https://picsum.photos/seed/baby/192/192',
+        icon: 'https://img.icons8.com/fluency/192/baby-bottle.png',
+        badge: 'https://img.icons8.com/fluency/192/baby-bottle.png',
         vibrate: [200, 100, 200],
         tag: 'feeding-reminder',
         renotify: true
