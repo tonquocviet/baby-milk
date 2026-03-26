@@ -376,26 +376,26 @@ export default function App() {
                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-400/20 rounded-full -ml-16 -mb-16 blur-2xl" />
                 
                 <div className="relative flex justify-center">
-                  <svg className="w-40 h-40 transform -rotate-90">
+                  <svg className="w-48 h-48 transform -rotate-90">
                     <circle
-                      cx="80"
-                      cy="80"
-                      r="70"
+                      cx="96"
+                      cy="96"
+                      r="86"
                       stroke="currentColor"
                       strokeWidth="8"
                       fill="transparent"
                       className="text-white/10"
                     />
                     <motion.circle
-                      cx="80"
-                      cy="80"
-                      r="70"
+                      cx="96"
+                      cy="96"
+                      r="86"
                       stroke="currentColor"
                       strokeWidth="8"
                       fill="transparent"
-                      strokeDasharray={440}
-                      initial={{ strokeDashoffset: 440 }}
-                      animate={{ strokeDashoffset: 440 - (440 * (countdown.progress as any)) / 100 }}
+                      strokeDasharray={540}
+                      initial={{ strokeDashoffset: 540 }}
+                      animate={{ strokeDashoffset: 540 - (540 * (countdown.progress as any)) / 100 }}
                       transition={{ duration: 1, ease: "easeOut" }}
                       strokeLinecap="round"
                       className="text-white"
@@ -403,7 +403,7 @@ export default function App() {
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
                     <p className="text-[10px] font-black opacity-70 uppercase tracking-[0.2em] mb-1">Cữ tiếp theo</p>
-                    <h2 className={`font-black tracking-tighter leading-none ${countdown.text.length > 8 ? 'text-2xl' : 'text-4xl'}`}>
+                    <h2 className={`font-black tracking-tighter leading-none ${countdown.text.length > 10 ? 'text-xl' : countdown.text.length > 8 ? 'text-2xl' : 'text-4xl'}`}>
                       {countdown.text}
                     </h2>
                   </div>
