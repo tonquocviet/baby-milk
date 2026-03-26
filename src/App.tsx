@@ -80,18 +80,44 @@ export default function App() {
   };
 
   const requestNotificationPermission = async () => {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+
     if (!('Notification' in window)) {
-      addToast('Trình duyệt không hỗ trợ thông báo', 'error');
+      if (isIOS) {
+        if (!isStandalone) {
+          addToast('Vui lòng thêm ứng dụng vào Màn hình chính (Add to Home Screen) để sử dụng thông báo trên iPhone.', 'info');
+        } else {
+          addToast('iPhone của bạn cần cập nhật lên iOS 16.4 trở lên để hỗ trợ thông báo.', 'error');
+        }
+      } else {
+        addToast('Trình duyệt của bạn không hỗ trợ thông báo.', 'error');
+      }
       return;
     }
     
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      setNotificationsEnabled(true);
-      localStorage.setItem('baby_notifications_enabled', 'true');
-      addToast('Đã bật thông báo nhắc nhở');
-    } else {
-      addToast('Bạn đã từ chối quyền thông báo', 'info');
+    try {
+      // On some browsers, requestPermission doesn't return a promise
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setNotificationsEnabled(true);
+        localStorage.setItem('baby_notifications_enabled', 'true');
+        addToast('Đã bật thông báo nhắc nhở');
+      } else {
+        addToast('Bạn đã từ chối quyền thông báo', 'info');
+      }
+    } catch (error) {
+      console.error('Notification permission error:', error);
+      // Fallback for older browsers that use callback
+      Notification.requestPermission((permission) => {
+        if (permission === 'granted') {
+          setNotificationsEnabled(true);
+          localStorage.setItem('baby_notifications_enabled', 'true');
+          addToast('Đã bật thông báo nhắc nhở');
+        } else {
+          addToast('Bạn đã từ chối quyền thông báo', 'info');
+        }
+      });
     }
   };
 
@@ -376,34 +402,34 @@ export default function App() {
                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-400/20 rounded-full -ml-16 -mb-16 blur-2xl" />
                 
                 <div className="relative flex justify-center">
-                  <svg className="w-48 h-48 transform -rotate-90">
+                  <svg className="w-56 h-56 transform -rotate-90">
                     <circle
-                      cx="96"
-                      cy="96"
-                      r="86"
+                      cx="112"
+                      cy="112"
+                      r="100"
                       stroke="currentColor"
                       strokeWidth="8"
                       fill="transparent"
                       className="text-white/10"
                     />
                     <motion.circle
-                      cx="96"
-                      cy="96"
-                      r="86"
+                      cx="112"
+                      cy="112"
+                      r="100"
                       stroke="currentColor"
                       strokeWidth="8"
                       fill="transparent"
-                      strokeDasharray={540}
-                      initial={{ strokeDashoffset: 540 }}
-                      animate={{ strokeDashoffset: 540 - (540 * (countdown.progress as any)) / 100 }}
+                      strokeDasharray={628}
+                      initial={{ strokeDashoffset: 628 }}
+                      animate={{ strokeDashoffset: 628 - (628 * (countdown.progress as any)) / 100 }}
                       transition={{ duration: 1, ease: "easeOut" }}
                       strokeLinecap="round"
                       className="text-white"
                     />
                   </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
                     <p className="text-[10px] font-black opacity-70 uppercase tracking-[0.2em] mb-1">Cữ tiếp theo</p>
-                    <h2 className={`font-black tracking-tighter leading-none ${countdown.text.length > 10 ? 'text-xl' : countdown.text.length > 8 ? 'text-2xl' : 'text-4xl'}`}>
+                    <h2 className={`font-black tracking-tighter leading-none ${countdown.text.length > 12 ? 'text-xl' : countdown.text.length > 10 ? 'text-2xl' : countdown.text.length > 8 ? 'text-3xl' : 'text-5xl'}`}>
                       {countdown.text}
                     </h2>
                   </div>

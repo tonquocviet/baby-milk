@@ -2,16 +2,13 @@ const CACHE_NAME = 'babymilk-v1';
 const ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json',
-  '/src/main.tsx',
-  '/src/App.tsx',
-  '/src/index.css'
+  '/manifest.json'
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
+      return cache.addAll(ASSETS).catch(err => console.log('SW cache error:', err));
     })
   );
 });
